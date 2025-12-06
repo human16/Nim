@@ -1,7 +1,7 @@
 CC = gcc
 CFLAGS = -g -Wall -Wvla -std=c99 -fsanitize=address,undefined
 DEBUG_OBJS = debug_nim.o
-REGULAR_OBJS = nim.o decoder.o, game.o
+REGULAR_OBJS = nim.o decoder.o game.o
 
 
 regular: $(REGULAR_OBJS)
@@ -14,7 +14,7 @@ debug: $(DEBUG_OBJS)
 	$(CC) $(CFLAGS) -c $< -o $@
 
 nim.o: decoder.h game.h
-
+decoder.o: decoder.h decoder.c
 
 clean:
-	rm -f *.o nim debug_nim
+	rm -f *.o nimd debug_nim

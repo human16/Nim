@@ -167,6 +167,8 @@ int main(int argc, char **argv) {
     exit(EXIT_FAILURE);
   }
 
+  int waiting_sock = -1;
+
   while (active) {
     remote_host_len = sizeof(remote_host);
     int sock =
@@ -176,16 +178,34 @@ int main(int argc, char **argv) {
       perror("accept");
       continue;
     }
-
-    if (fork() == 0) {
-      close(listener);
-      Message msg;
-      char buffer[BUFLEN];
-      read_buf(sock, buffer, BUFLEN);
-      parse_message(buffer, BUFLEN, &msg);
-      printf("Received message of type: %s\n", msg.type);
-      //read_data(sock, (struct sockaddr *)&remote_host, remote_host_len);
-      exit(EXIT_SUCCESS);
+    if (waiting_sock == -1) {
+      waiting_sock = sock;
+      printf("Waiting for opponent\n");
+    } else {
+      if (fork() == 0) {
+        close(listener);
+        Message msg;
+        char buffer[BUFLEN];
+        read_buf(sock, buffer, BUFLEN);
+        decode_message(buffer, BUFLEN, &msg);
+        if (msg.error_code != 0) {
+          char errbuff[BUFLEN];
+          encode_fail(errbuff, BUFLEN, msg.error_code);
+          send(sock, errbuff, BUFLEN, 0);
+          if (msg.error_code == ERR_INVALID || msg.error_code == ERR_LONG_NAME || 
+            msg.error_code == ERR_ALREADY_PLAY || msg.error_code == ERR_ALREADY_OPEN || 
+            msg.error_code == ERR_NOT_PLAYING) {
+            close(sock);
+            exit(EXIT_FAILURE);
+          }
+          char errbuff[BUFLEN];
+          encode_fail(errbuff, BUFLEN, msg.error_code);
+          send(sock, errbuff, BUFLEN, 0);
+        }
+        //printf("Received message of type: %s\n", msg.type);
+        close(sock);
+        exit(EXIT_SUCCESS);
+      }
     }
 
     close(sock);
