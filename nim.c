@@ -8,6 +8,9 @@
 #include <sys/socket.h>
 #include <sys/wait.h>
 #include <unistd.h>
+#include <fcntl.h>
+#include "decoder.h"
+#include "game.h"
 
 #define QUEUE_SIZE 8
 
@@ -134,41 +137,22 @@ int open_listener(char *service, int queue_size) {
   return sock;
 }
 
-// to be removed
-#define BUFSIZE 256
-#define HOSTSIZE 100
-#define PORTSIZE 10
-void read_data(int sock, struct sockaddr *rem, socklen_t rem_len) {
-  char buf[BUFSIZE + 1], host[HOSTSIZE], port[PORTSIZE];
-  int bytes, error;
-
-  error =
-      getnameinfo(rem, rem_len, host, HOSTSIZE, port, PORTSIZE, NI_NUMERICSERV);
-  if (error) {
-    fprintf(stderr, "getnameinfo: %s\n", gai_strerror(error));
-    strcpy(host, "??");
-    strcpy(port, "??");
-  }
-
-  printf("Connection from %s:%s\n", host, port);
-
-  while (active && ((bytes = read(sock, buf, BUFSIZE)) > 0)) {
-    buf[bytes] = '\0';
-    printf("[%s:%s] read %d bytes |%s|\n", host, port, bytes, buf);
-  }
-
-  if (bytes == 0) {
-    printf("[%s:%s] got EOF\n", host, port);
-  } else if (bytes == -1) {
-    printf("[%s:%s] terminating: %s\n", host, port, strerror(errno));
-  } else {
-    printf("[%s:%s] terminating\n", host, port);
-  }
-
-  close(sock);
-}
-
 #define BUFLEN 256
+
+void read_buf(int sock, char *buf, int bufsize) {
+  int bytes_read = 0;
+  while (bytes_read < bufsize) {
+    int n = read(sock, buf + bytes_read, bufsize - bytes_read);
+    if (n < 0) {
+      perror("read");
+      return;
+    } else if (n == 0) {
+      // connection closed
+      return;
+    }
+    bytes_read += n;
+  }
+}
 
 int main(int argc, char **argv) {
   if (argc != 2) {
@@ -195,7 +179,12 @@ int main(int argc, char **argv) {
 
     if (fork() == 0) {
       close(listener);
-      read_data(sock, (struct sockaddr *)&remote_host, remote_host_len);
+      Message msg;
+      char buffer[BUFLEN];
+      read_buf(sock, buffer, BUFLEN);
+      parse_message(buffer, BUFLEN, &msg);
+      printf("Received message of type: %s\n", msg.type);
+      //read_data(sock, (struct sockaddr *)&remote_host, remote_host_len);
       exit(EXIT_SUCCESS);
     }
 
