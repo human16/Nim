@@ -1,6 +1,7 @@
 #ifndef DECODER_H
 #define DECODER_H
 
+// error codes from table 1
 #define ERR_NONE 0
 #define ERR_INVALID 10
 #define ERR_LONG_NAME 21

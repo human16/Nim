@@ -407,12 +407,12 @@ void test_edge_cases() {
   }
 
   {
-    char buf[] = "0|17|OPEN|A@#$%^&*()|";
+    char buf[] = "0|16|OPEN|A@#$%^&*()|";
     Message msg = {0};
     int result = parse_message(buf, strlen(buf), &msg);
 
     int pass =
-        (result == 22 && msg.field_count == 1 &&
+        (result == 21 && msg.field_count == 1 &&
          strcmp(msg.fields[0], "A@#$%^&*()") == 0 && msg.error_code == 0);
 
     assert_test(pass, "edge_special_chars", "Should handle special characters");
