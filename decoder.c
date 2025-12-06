@@ -53,15 +53,12 @@ static char *find_delimiter(char *buf, int len) {
 // and a pointer to a message struct.
 // returns the number of bytes of the message if successful
 // -1 if there was an error or 0 if incomplete
-int parse_message(char *buf, int len, Message *msg) {
-  // init output struct
+int decode_message(char *buf, int len, Message *msg) {
   memset(msg, 0, sizeof(Message));
 
-  // buffer length needs to be at least 5 bytes
   if (len < 5)
-    return 0; // incomplete, need to wait for more bytes
+    return 0;
 
-  // check version is 0 and ends with |
   if (buf[0] == '0' && buf[1] == '|') {
     msg->version = 0;
   } else {
@@ -69,7 +66,6 @@ int parse_message(char *buf, int len, Message *msg) {
     return -1;
   }
 
-  // check message length is a valid integer between 5 and 99
   if (isdigit(buf[2]) && isdigit(buf[3]) && buf[4] == '|') {
     int msg_length = (buf[2] - '0') * 10 + (buf[3] - '0');
     if (msg_length >= 5 && msg_length <= 99) {
@@ -83,10 +79,8 @@ int parse_message(char *buf, int len, Message *msg) {
     return -1;
   }
 
-  // total number of bytes (message length + 5 for the header)
-  // should not exceed the size of len
   if (msg->length + 5 > len) {
-    return 0; // incomplete
+    return 0;
   }
 
   memcpy(msg->type, buf + 5, 4);
@@ -99,13 +93,11 @@ int parse_message(char *buf, int len, Message *msg) {
   }
   msg->field_count = fc;
 
-  // parse fields by finding each '|' in the buffer and replacing it
-  // with a '\0', then adding everything to msg->fields[i]
   char *p = buf + 10;
-  int remaining = msg->length - 5; // subtract "TYPE|" (4 bytes + 1 delimiter)
+  int remaining = msg->length - 5;
 
   for (int i = 0; i < msg->field_count; i++) {
-    msg->fields[i] = p; // Save field start
+    msg->fields[i] = p;
 
     char *delim = find_delimiter(p, remaining);
     if (delim == NULL) {
@@ -118,14 +110,11 @@ int parse_message(char *buf, int len, Message *msg) {
     p = delim + 1;
   }
 
-  // verify at end
-  // after parsing all fields, p should point to end of message
   if (p != buf + 5 + msg->length) {
     msg->error_code = ERR_INVALID;
     return -1;
   }
 
-  // verify name length <= MAX_NAME_LEN for OPEN messages
   if (strcmp(msg->type, TYPE_OPEN) == 0) {
     if (strlen(msg->fields[0]) > MAX_NAME_LEN) {
       msg->error_code = ERR_LONG_NAME;
@@ -133,7 +122,6 @@ int parse_message(char *buf, int len, Message *msg) {
     }
   }
 
-  // verify MOVE messages
   if (strcmp(msg->type, TYPE_MOVE) == 0) {
     for (int i = 0; i < msg->field_count; i++) {
       char *field = msg->fields[i];
@@ -149,7 +137,34 @@ int parse_message(char *buf, int len, Message *msg) {
   return 5 + msg->length;
 }
 
-int encode_message(char *buf, int bufsize, char *type, ...) { return 999; }
+int encode_message(char *buf, int bufsize, char *type, ...) {
+  int fc = expected_fields(type);
+  if (fc == -1)
+    return -1;
+
+  va_list args;
+  va_start(args, type);
+  char *fields[3];
+  for (int i = 0; i < fc; i++) {
+    fields[i] = va_arg(args, char *);
+  }
+  va_end(args);
+
+  int content_len = 5;
+  for (int i = 0; i < fc; i++) {
+    content_len += strlen(fields[i]) + 1; // plus one for |
+  }
+
+  if (5 + content_len > bufsize)
+    return -1;
+
+  int pos = sprintf(buf, "0|%02d|%s|", content_len, type);
+  for (int i = 0; i < fc; i++) {
+    pos += sprintf(buf + pos, "%s|", fields[i]);
+  }
+
+  return pos;
+}
 
 const char *error_string(int error_code) {
   switch (error_code) {
@@ -177,7 +192,7 @@ const char *error_string(int error_code) {
 }
 
 int encode_fail(char *buf, int bufsize, int error_code) {
-  return encode_message(buf, bufsize, TYPE_FAIL, error_string(error_code));
+  return encode_message(buf, bufsize, "FAIL", error_string(error_code));
 }
 
 void debug_print_message(const Message *msg) {

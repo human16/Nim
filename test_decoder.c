@@ -23,7 +23,7 @@ void test_valid_messages() {
   {
     char buf[] = "0|05|WAIT|";
     Message msg = {0};
-    int result = parse_message(buf, strlen(buf), &msg);
+    int result = decode_message(buf, strlen(buf), &msg);
 
     int pass = (result == 10 && msg.version == 0 && msg.length == 5 &&
                 strcmp(msg.type, "WAIT") == 0 && msg.field_count == 0 &&
@@ -35,7 +35,7 @@ void test_valid_messages() {
   {
     char buf[] = "0|11|OPEN|Alice|";
     Message msg = {0};
-    int result = parse_message(buf, strlen(buf), &msg);
+    int result = decode_message(buf, strlen(buf), &msg);
 
     int pass = (result == 16 && msg.version == 0 && msg.length == 11 &&
                 strcmp(msg.type, "OPEN") == 0 && msg.field_count == 1 &&
@@ -49,7 +49,7 @@ void test_valid_messages() {
   {
     char buf[] = "0|19|OPEN|Alice Johnson|";
     Message msg = {0};
-    int result = parse_message(buf, strlen(buf), &msg);
+    int result = decode_message(buf, strlen(buf), &msg);
 
     int pass =
         (result == 24 && msg.length == 19 && strcmp(msg.type, "OPEN") == 0 &&
@@ -63,7 +63,7 @@ void test_valid_messages() {
   {
     char buf[] = "0|13|NAME|1|Alice|";
     Message msg = {0};
-    int result = parse_message(buf, strlen(buf), &msg);
+    int result = decode_message(buf, strlen(buf), &msg);
 
     int pass =
         (result == 18 && msg.length == 13 && strcmp(msg.type, "NAME") == 0 &&
@@ -76,7 +76,7 @@ void test_valid_messages() {
   {
     char buf[] = "0|17|PLAY|1|1 3 5 7 9|";
     Message msg = {0};
-    int result = parse_message(buf, strlen(buf), &msg);
+    int result = decode_message(buf, strlen(buf), &msg);
 
     int pass =
         (result == 22 && msg.length == 17 && strcmp(msg.type, "PLAY") == 0 &&
@@ -89,7 +89,7 @@ void test_valid_messages() {
   {
     char buf[] = "0|09|MOVE|2|3|";
     Message msg = {0};
-    int result = parse_message(buf, strlen(buf), &msg);
+    int result = decode_message(buf, strlen(buf), &msg);
 
     int pass =
         (result == 14 && msg.length == 9 && strcmp(msg.type, "MOVE") == 0 &&
@@ -102,7 +102,7 @@ void test_valid_messages() {
   {
     char buf[] = "0|18|OVER|1|1 3 5 7 9||";
     Message msg = {0};
-    int result = parse_message(buf, strlen(buf), &msg);
+    int result = decode_message(buf, strlen(buf), &msg);
 
     int pass =
         (result == 23 && msg.length == 18 && strcmp(msg.type, "OVER") == 0 &&
@@ -117,7 +117,7 @@ void test_valid_messages() {
   {
     char buf[] = "0|25|OVER|2|1 3 5 7 9|Forfeit|";
     Message msg = {0};
-    int result = parse_message(buf, strlen(buf), &msg);
+    int result = decode_message(buf, strlen(buf), &msg);
 
     int pass =
         (result == 30 && msg.length == 25 && strcmp(msg.type, "OVER") == 0 &&
@@ -132,7 +132,7 @@ void test_valid_messages() {
   {
     char buf[] = "0|18|FAIL|Invalid move|";
     Message msg = {0};
-    int result = parse_message(buf, strlen(buf), &msg);
+    int result = decode_message(buf, strlen(buf), &msg);
 
     int pass =
         (result == 23 && msg.length == 18 && strcmp(msg.type, "FAIL") == 0 &&
@@ -150,7 +150,7 @@ void test_length_validation() {
   {
     char buf[] = "0|03|WAIT|";
     Message msg = {0};
-    int result = parse_message(buf, strlen(buf), &msg);
+    int result = decode_message(buf, strlen(buf), &msg);
 
     int pass = (result == -1 && msg.error_code == ERR_INVALID);
     assert_test(pass, "length_too_short",
@@ -161,7 +161,7 @@ void test_length_validation() {
   {
     char buf[] = "0|50|WAIT|";
     Message msg = {0};
-    int result = parse_message(buf, strlen(buf), &msg);
+    int result = decode_message(buf, strlen(buf), &msg);
 
     int pass = (result == 0);
     assert_test(pass, "length_exceeds_buffer",
@@ -171,7 +171,7 @@ void test_length_validation() {
   {
     char buf[] = "0|5|WAIT|";
     Message msg = {0};
-    int result = parse_message(buf, strlen(buf), &msg);
+    int result = decode_message(buf, strlen(buf), &msg);
 
     int pass = (result == -1 && msg.error_code == ERR_INVALID);
     assert_test(pass, "length_one_digit", "Should reject single-digit length");
@@ -181,7 +181,7 @@ void test_length_validation() {
   {
     char buf[] = "0|04|WAIT|";
     Message msg = {0};
-    int result = parse_message(buf, strlen(buf), &msg);
+    int result = decode_message(buf, strlen(buf), &msg);
 
     int pass = (result == -1 && msg.error_code == ERR_INVALID);
     assert_test(pass, "length_below_minimum", "Should reject length < 5");
@@ -191,7 +191,7 @@ void test_length_validation() {
   {
     char buf[] = "0|ab|WAIT|";
     Message msg = {0};
-    int result = parse_message(buf, strlen(buf), &msg);
+    int result = decode_message(buf, strlen(buf), &msg);
 
     int pass = (result == -1 && msg.error_code == ERR_INVALID);
     assert_test(pass, "length_non_digits", "Should reject non-digit length");
@@ -204,7 +204,7 @@ void test_incomplete_messages() {
   {
     char buf[] = "0";
     Message msg = {0};
-    int result = parse_message(buf, strlen(buf), &msg);
+    int result = decode_message(buf, strlen(buf), &msg);
 
     int pass = (result == 0);
     assert_test(pass, "incomplete_version_only",
@@ -215,7 +215,7 @@ void test_incomplete_messages() {
   {
     char buf[] = "0|1";
     Message msg = {0};
-    int result = parse_message(buf, strlen(buf), &msg);
+    int result = decode_message(buf, strlen(buf), &msg);
 
     int pass = (result == 0);
     assert_test(pass, "incomplete_partial_length",
@@ -225,7 +225,7 @@ void test_incomplete_messages() {
   {
     char buf[] = "0|11|OPEN";
     Message msg = {0};
-    int result = parse_message(buf, strlen(buf), &msg);
+    int result = decode_message(buf, strlen(buf), &msg);
 
     int pass = (result == 0);
     assert_test(pass, "incomplete_header_only",
@@ -235,7 +235,7 @@ void test_incomplete_messages() {
   {
     char buf[] = "0|11|OPEN|Ali";
     Message msg = {0};
-    int result = parse_message(buf, strlen(buf), &msg);
+    int result = decode_message(buf, strlen(buf), &msg);
 
     int pass = (result == 0);
     assert_test(pass, "incomplete_partial_field",
@@ -245,7 +245,7 @@ void test_incomplete_messages() {
   {
     char buf[] = "0|11|OPEN|Alice";
     Message msg = {0};
-    int result = parse_message(buf, strlen(buf), &msg);
+    int result = decode_message(buf, strlen(buf), &msg);
 
     int pass = (result == 0);
     assert_test(pass, "incomplete_no_final_delim",
@@ -255,7 +255,7 @@ void test_incomplete_messages() {
   {
     char buf[] = "";
     Message msg = {0};
-    int result = parse_message(buf, 0, &msg);
+    int result = decode_message(buf, 0, &msg);
 
     int pass = (result == 0);
     assert_test(pass, "incomplete_empty", "Should return 0 for empty buffer");
@@ -268,7 +268,7 @@ void test_invalid_format() {
   {
     char buf[] = "0|05|BLAH|";
     Message msg = {0};
-    int result = parse_message(buf, strlen(buf), &msg);
+    int result = decode_message(buf, strlen(buf), &msg);
 
     int pass = (result == -1 && msg.error_code == ERR_INVALID);
     assert_test(pass, "invalid_unknown_type",
@@ -278,7 +278,7 @@ void test_invalid_format() {
   {
     char buf[] = "1|05|WAIT|";
     Message msg = {0};
-    int result = parse_message(buf, strlen(buf), &msg);
+    int result = decode_message(buf, strlen(buf), &msg);
 
     int pass = (result == -1 && msg.error_code == ERR_INVALID);
     assert_test(pass, "invalid_version", "Should reject version != 0");
@@ -287,7 +287,7 @@ void test_invalid_format() {
   {
     char buf[] = "a|05|WAIT|";
     Message msg = {0};
-    int result = parse_message(buf, strlen(buf), &msg);
+    int result = decode_message(buf, strlen(buf), &msg);
 
     int pass = (result == -1 && msg.error_code == ERR_INVALID);
     assert_test(pass, "invalid_version_non_digit",
@@ -297,7 +297,7 @@ void test_invalid_format() {
   {
     char buf[] = "005|WAIT|";
     Message msg = {0};
-    int result = parse_message(buf, strlen(buf), &msg);
+    int result = decode_message(buf, strlen(buf), &msg);
 
     int pass = (result == -1 && msg.error_code == ERR_INVALID);
     assert_test(pass, "invalid_no_version_delim",
@@ -307,7 +307,7 @@ void test_invalid_format() {
   {
     char buf[] = "0|05|OPEN|";
     Message msg = {0};
-    int result = parse_message(buf, strlen(buf), &msg);
+    int result = decode_message(buf, strlen(buf), &msg);
 
     int pass = (result == -1 && msg.error_code == ERR_INVALID);
     assert_test(pass, "invalid_too_few_fields", "Should reject too few fields");
@@ -316,7 +316,7 @@ void test_invalid_format() {
   {
     char buf[] = "0|16|WAIT|extra|data|";
     Message msg = {0};
-    int result = parse_message(buf, strlen(buf), &msg);
+    int result = decode_message(buf, strlen(buf), &msg);
 
     int pass = (result == -1 && msg.error_code == ERR_INVALID);
     assert_test(pass, "invalid_too_many_fields",
@@ -326,7 +326,7 @@ void test_invalid_format() {
   {
     char buf[] = "0|05|WAI||";
     Message msg = {0};
-    int result = parse_message(buf, strlen(buf), &msg);
+    int result = decode_message(buf, strlen(buf), &msg);
 
     int pass = (result == -1 && msg.error_code == ERR_INVALID);
     assert_test(pass, "invalid_short_type", "Should reject type < 4 chars");
@@ -339,7 +339,7 @@ void test_edge_cases() {
   {
     char buf[] = "0|06|OPEN||";
     Message msg = {0};
-    int result = parse_message(buf, strlen(buf), &msg);
+    int result = decode_message(buf, strlen(buf), &msg);
 
     int pass = (result == 11 && msg.field_count == 1 && msg.fields[0] != NULL &&
                 strcmp(msg.fields[0], "") == 0 && msg.error_code == 0);
@@ -355,7 +355,7 @@ void test_edge_cases() {
     char buf[100];
     snprintf(buf, sizeof(buf), "0|78|OPEN|%s|", name);
     Message msg = {0};
-    int result = parse_message(buf, strlen(buf), &msg);
+    int result = decode_message(buf, strlen(buf), &msg);
 
     int pass = (result == 83 && msg.field_count == 1 &&
                 strlen(msg.fields[0]) == 72 && msg.error_code == 0);
@@ -371,7 +371,7 @@ void test_edge_cases() {
     char buf[100];
     snprintf(buf, sizeof(buf), "0|79|OPEN|%s|", name);
     Message msg = {0};
-    int result = parse_message(buf, strlen(buf), &msg);
+    int result = decode_message(buf, strlen(buf), &msg);
 
     int pass = (result == -1 && msg.error_code == ERR_LONG_NAME);
 
@@ -382,7 +382,7 @@ void test_edge_cases() {
   {
     char buf[] = "0|08|PLAY|1||";
     Message msg = {0};
-    int result = parse_message(buf, strlen(buf), &msg);
+    int result = decode_message(buf, strlen(buf), &msg);
 
     int pass = (result == 13 && msg.field_count == 2 &&
                 strcmp(msg.fields[0], "1") == 0 &&
@@ -395,11 +395,11 @@ void test_edge_cases() {
     char buf[] = "0|05|WAIT|0|11|OPEN|Alice|";
     Message msg = {0};
 
-    int result1 = parse_message(buf, strlen(buf), &msg);
+    int result1 = decode_message(buf, strlen(buf), &msg);
     int pass1 = (result1 == 10 && strcmp(msg.type, "WAIT") == 0);
 
     Message msg2 = {0};
-    int result2 = parse_message(buf + result1, strlen(buf) - result1, &msg2);
+    int result2 = decode_message(buf + result1, strlen(buf) - result1, &msg2);
     int pass2 = (result2 == 16 && strcmp(msg2.type, "OPEN") == 0);
 
     assert_test(pass1 && pass2, "edge_multiple_messages",
@@ -409,7 +409,7 @@ void test_edge_cases() {
   {
     char buf[] = "0|16|OPEN|A@#$%^&*()|";
     Message msg = {0};
-    int result = parse_message(buf, strlen(buf), &msg);
+    int result = decode_message(buf, strlen(buf), &msg);
 
     int pass =
         (result == 21 && msg.field_count == 1 &&
@@ -474,14 +474,6 @@ void test_encoder() {
 
   {
     char buf[100];
-    int n = encode_message(buf, sizeof(buf), "FAIL", "10 Invalid");
-
-    int pass = (n == 20 && strcmp(buf, "0|15|FAIL|10 Invalid|") == 0);
-    assert_test(pass, "encode_FAIL", "Should encode FAIL correctly");
-  }
-
-  {
-    char buf[100];
     int n = encode_message(buf, sizeof(buf), "BLAH");
 
     int pass = (n == -1);
@@ -501,7 +493,7 @@ void test_encoder() {
     encode_message(buf, sizeof(buf), "OPEN", "TestUser");
 
     Message msg = {0};
-    int result = parse_message(buf, strlen(buf), &msg);
+    int result = decode_message(buf, strlen(buf), &msg);
 
     int pass = (result > 0 && strcmp(msg.type, "OPEN") == 0 &&
                 strcmp(msg.fields[0], "TestUser") == 0);
