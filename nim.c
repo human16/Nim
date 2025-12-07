@@ -14,6 +14,14 @@
 
 #define QUEUE_SIZE 8
 
+typedef struct {
+  int sock;
+  char name[73]; //max is 72 + null
+  int opened; //bool
+  char *buffer;
+  int buffer_size;
+} Player;
+
 volatile int active = 1;
 
 void handler(int signum) { active = 0; }
@@ -153,6 +161,55 @@ void read_buf(int sock, char *buf, int bufsize) {
     bytes_read += n;
   }
 }
+\
+void send_wait(int sock) {
+  char buf[BUFLEN];
+  int len = encode_message(buf, BUFLEN, "WAIT");
+  if (write(sock, buf, len) < 0) {
+    perror("write");
+  }
+}
+
+int open(Player *p) {
+  Message msg;
+  int bytes = decode_message(p->buffer, p->buffer_size, &msg);
+  
+  if (bytes < 0) {
+    char *buf;
+    int len = encode_fail(buf, sizeof(buf), ERR_INVALID);
+    write(p->sock, buf, len);
+    return -1;
+  }
+  if (bytes == 0) {
+    return 0;
+  }
+
+  // game not open yet
+  if (strcmp(msg.type, "OPEN") != 0) {
+    char *buf;
+    int len = encode_fail(buf, sizeof(buf), ERR_INVALID);
+    write(p->sock, buf, len);
+    return -1;
+  }
+
+  //already opened
+  if (p->opened) {
+    char *buf;
+    int len = encode_fail(buf, sizeof(buf), ERR_ALREADY_OPEN);
+    write(p->sock, buf, len);
+    return -1;
+  }
+
+  strncpy(p->name, msg.fields[0], sizeof(p->name)-1);
+  p->name[sizeof(p->name)-1] = '\0';
+  p->opened = 1;
+  
+  memmove(p->buffer, p->buffer + bytes, p->buffer_size - bytes);
+  p->buffer_size -= bytes;
+
+  send_wait(p->sock);
+  return 1;
+}
 
 int main(int argc, char **argv) {
   if (argc != 2) {
@@ -183,6 +240,42 @@ int main(int argc, char **argv) {
       printf("Waiting for opponent\n");
     } else {
       if (fork() == 0) {
+        Player p1 = {waiting_sock, "", 0, NULL, BUFLEN};
+        Player p2 = {sock, "", 0, NULL, BUFLEN};
+        while (1) {
+          int p1_bytes = read(waiting_sock, p1.buffer, BUFLEN-p1.buffer_size);
+          if (p1_bytes <= 0) {
+            printf("Player 1 disconnected\n");
+            close(p1.sock);
+            close(p2.sock);
+            exit(EXIT_SUCCESS);
+          }
+          p1.buffer_size += p1_bytes;
+
+          p1.opened = open(&p1);
+
+          if (p1.opened < 0) {
+            close(p1.sock);
+            close(p2.sock);
+            exit(EXIT_FAILURE);
+          }
+
+          int p2_bytes = read(sock, p2.buffer, BUFLEN-p2.buffer_size);
+          if (p2_bytes <= 0) {
+            printf("Player 2 disconnected\n");
+            close(p1.sock);
+            close(p2.sock);
+            exit(EXIT_SUCCESS);
+          }
+
+          p2.opened = open(&p2);
+
+          if (p2.opened < 0) {
+            close(p1.sock);
+            close(p2.sock);
+            exit(EXIT_FAILURE);
+          }
+        }
         close(listener);
         Message msg;
         char buffer[BUFLEN];
