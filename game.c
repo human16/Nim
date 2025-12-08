@@ -13,15 +13,28 @@
 #include "decoder.h"
 
 void playGame(Player *p1, Player *p2) {
-    Game game;
-    //init_game(&game);
+  Game game;
+  init_game(&game);
 
-    // Game loop and logic would go here
+  p1->playing = 1;
+  p2->playing = 1;
+
+
+
+  // Game loop and logic would go here
 
 }
 
 void init_game(Game *g) {
-    //todo
+  //default config of 1, 3, 5, 7, 9
+  for (int i = 0; i < 5; i++) {
+    g->piles[i] = i*2+1;
+  }
+  g->curr_player = 1;
+}
+
+void send_name() {
+
 }
 
 void send_wait(int sock) {
@@ -37,7 +50,7 @@ int openGame(Player *p) {
   int bytes = decode_message(p->buffer, p->buffer_size, &msg);
   
   if (bytes < 0) {
-    char *buf;
+    char buf[BUFLEN];
     int len = encode_fail(buf, sizeof(buf), ERR_INVALID);
     write(p->sock, buf, len);
     return -1;
@@ -48,7 +61,7 @@ int openGame(Player *p) {
 
   // game not open yet
   if (strcmp(msg.type, "OPEN") != 0) {
-    char *buf;
+    char buf[BUFLEN];
     int len = encode_fail(buf, sizeof(buf), ERR_INVALID);
     write(p->sock, buf, len);
     return -1;
@@ -56,8 +69,16 @@ int openGame(Player *p) {
 
   //already opened
   if (p->opened) {
-    char *buf;
+    char buf[BUFLEN];
     int len = encode_fail(buf, sizeof(buf), ERR_ALREADY_OPEN);
+    write(p->sock, buf, len);
+    return -1;
+  }
+
+  //invalid name
+  if (msg.fields[0] == NULL || strlen(msg.fields[0]) == 0 || strlen(msg.fields[0]) > 72) {
+    char buf[BUFLEN];
+    int len = encode_fail(buf, sizeof(buf), ERR_INVALID);
     write(p->sock, buf, len);
     return -1;
   }
@@ -78,5 +99,10 @@ int apply_move(Game *g, int pile, int count) {
 }
 
 int is_game_over(Game *g) {
-    return EXIT_SUCCESS;
+  for (int i = 0; i < 5; i++) {
+    if (g->piles[i] > 0) {
+      return 0;
+    }
+  }  
+  return 1;
 }

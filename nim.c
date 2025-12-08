@@ -153,41 +153,55 @@ void read_buf(int sock, char *buf, int bufsize) {
 }
 
 void handle_game(int p1_sock, int p2_sock) {
-  Player p1 = {p1_sock, "", 1, 0, malloc(BUFLEN), BUFLEN};
-  Player p2 = {p2_sock, "", 1, 0, malloc(BUFLEN), BUFLEN};
-  while (1) {
-    int p1_bytes = read(p1.sock, p1.buffer, p1.buffer_size);
-    if (p1_bytes <= 0) {
-      printf("Player 1 disconnected\n");
-      close(p1.sock);
-      close(p2.sock);
-      exit(EXIT_SUCCESS);
+  Player p1 = {p1_sock, "", 1, 0, malloc(BUFLEN), 0};
+  Player p2 = {p2_sock, "", 1, 0, malloc(BUFLEN), 0};
+  
+  // Track how many bytes are currently in each buffer
+  int p1_buffer_used = 0;
+  int p2_buffer_used = 0;
+  
+  // Wait for both players to open
+  while (!p1.opened || !p2.opened) {
+    if (!p1.opened) {
+      int p1_bytes = read(p1.sock, p1.buffer + p1_buffer_used, BUFLEN - p1_buffer_used);
+      if (p1_bytes <= 0) {
+        printf("Player 1 disconnected\n");
+        close(p1.sock);
+        close(p2.sock);
+        exit(EXIT_SUCCESS);
+      }
+      p1_buffer_used += p1_bytes;
+      p1.buffer_size = p1_buffer_used;
+
+      int result = openGame(&p1);
+      if (result < 0) {
+        printf("P1 open err\n");
+        close(p1.sock);
+        close(p2.sock);
+        exit(EXIT_FAILURE);
+      }
+      p1_buffer_used = p1.buffer_size;
     }
-    p1.buffer_size += p1_bytes;
+    
+    if (!p2.opened) {
+      int p2_bytes = read(p2.sock, p2.buffer + p2_buffer_used, BUFLEN - p2_buffer_used);
+      if (p2_bytes <= 0) {
+        printf("Player 2 disconnected\n");
+        close(p1.sock);
+        close(p2.sock);
+        exit(EXIT_SUCCESS);
+      }
+      p2_buffer_used += p2_bytes;
+      p2.buffer_size = p2_buffer_used;
 
-    p1.opened = openGame(&p1);
-
-    if (p1.opened < 0) {
-      close(p1.sock);
-      close(p2.sock);
-      exit(EXIT_FAILURE);
-    }
-  }
-  while (1) {
-    int p2_bytes = read(p2.sock, p2.buffer, p2.buffer_size);
-    if (p2_bytes <= 0) {
-      printf("Player 2 disconnected\n");
-      close(p1.sock);
-      close(p2.sock);
-      exit(EXIT_SUCCESS);
-    }
-
-    p2.opened = openGame(&p2);
-
-    if (p2.opened < 0) {
-      close(p1.sock);
-      close(p2.sock);
-      exit(EXIT_FAILURE);
+      int result = openGame(&p2);
+      if (result < 0) {
+        printf("P2 open err\n");
+        close(p1.sock);
+        close(p2.sock);
+        exit(EXIT_FAILURE);
+      }
+      p2_buffer_used = p2.buffer_size;
     }
   }
 
@@ -245,15 +259,14 @@ int main(int argc, char **argv) {
       printf("Connected from %d\nWaiting for opponent\n", waiting_sock);
     } else {
       if (fork() == 0) {
-        printf("Starting game between %d and %d\n", waiting_sock, sock);
         close(listener);
+        printf("Starting game between %d and %d\n", waiting_sock, sock);
         handle_game(waiting_sock, sock);
         exit(EXIT_SUCCESS);
       }
       waiting_sock = -1;
+      close(sock);
     }
-
-    close(sock);
   }
 
   fprintf(stderr, "Shutting down\n");

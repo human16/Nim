@@ -15,7 +15,10 @@ typedef struct {
   int opened; // 0 is no, 1 is yes
   char *buffer;
   int buffer_size;
+  int playing;
 } Player;
+
+int openGame(Player *p);
 
 void playGame(Player *p1, Player *p2);
 
