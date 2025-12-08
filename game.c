@@ -19,6 +19,9 @@ void playGame(Player *p1, Player *p2) {
   p1->playing = 1;
   p2->playing = 1;
 
+  send_play(&game);
+  
+
   // Game loop and logic would go here
 }
 
@@ -30,7 +33,16 @@ void init_game(Game *g) {
   g->curr_player = 1;
 }
 
-void send_name() {}
+void send_play(Game *g) {
+  char board[64];
+  sprintf(board, "%d %d %d %d %d", g->piles[0], g->piles[1], g->piles[2], g->piles[3], g->piles[4]);
+  
+  char turn[8];
+  sprintf(turn, "%d", g->curr_player);
+
+  char *buf;
+  int len = encode_message(buf, BUFLEN, "PLAY", turn, board);
+}
 
 void send_wait(int sock) {
   char buf[BUFLEN];
