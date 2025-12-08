@@ -8,6 +8,9 @@
 #include <sys/socket.h>
 #include <sys/wait.h>
 #include <unistd.h>
+#include <fcntl.h>
+#include "decoder.h"
+#include "game.h"
 
 #define QUEUE_SIZE 8
 
@@ -134,41 +137,99 @@ int open_listener(char *service, int queue_size) {
   return sock;
 }
 
-// to be removed
-#define BUFSIZE 256
-#define HOSTSIZE 100
-#define PORTSIZE 10
-void read_data(int sock, struct sockaddr *rem, socklen_t rem_len) {
-  char buf[BUFSIZE + 1], host[HOSTSIZE], port[PORTSIZE];
-  int bytes, error;
-
-  error =
-      getnameinfo(rem, rem_len, host, HOSTSIZE, port, PORTSIZE, NI_NUMERICSERV);
-  if (error) {
-    fprintf(stderr, "getnameinfo: %s\n", gai_strerror(error));
-    strcpy(host, "??");
-    strcpy(port, "??");
+void read_buf(int sock, char *buf, int bufsize) {
+  int bytes_read = 0;
+  while (bytes_read < bufsize) {
+    int n = read(sock, buf + bytes_read, bufsize - bytes_read);
+    if (n < 0) {
+      perror("read");
+      return;
+    } else if (n == 0) {
+      // connection closed
+      return;
+    }
+    bytes_read += n;
   }
-
-  printf("Connection from %s:%s\n", host, port);
-
-  while (active && ((bytes = read(sock, buf, BUFSIZE)) > 0)) {
-    buf[bytes] = '\0';
-    printf("[%s:%s] read %d bytes |%s|\n", host, port, bytes, buf);
-  }
-
-  if (bytes == 0) {
-    printf("[%s:%s] got EOF\n", host, port);
-  } else if (bytes == -1) {
-    printf("[%s:%s] terminating: %s\n", host, port, strerror(errno));
-  } else {
-    printf("[%s:%s] terminating\n", host, port);
-  }
-
-  close(sock);
 }
 
-#define BUFLEN 256
+void handle_game(int p1_sock, int p2_sock) {
+  Player p1 = {p1_sock, "", 1, 0, malloc(BUFLEN), 0};
+  Player p2 = {p2_sock, "", 1, 0, malloc(BUFLEN), 0};
+  
+  // Track how many bytes are currently in each buffer
+  int p1_buffer_used = 0;
+  int p2_buffer_used = 0;
+  
+  // Wait for both players to open
+  while (!p1.opened || !p2.opened) {
+    if (!p1.opened) {
+      int p1_bytes = read(p1.sock, p1.buffer + p1_buffer_used, BUFLEN - p1_buffer_used);
+      if (p1_bytes <= 0) {
+        printf("Player 1 disconnected\n");
+        close(p1.sock);
+        close(p2.sock);
+        exit(EXIT_SUCCESS);
+      }
+      p1_buffer_used += p1_bytes;
+      p1.buffer_size = p1_buffer_used;
+
+      int result = openGame(&p1);
+      if (result < 0) {
+        printf("P1 open err\n");
+        close(p1.sock);
+        close(p2.sock);
+        exit(EXIT_FAILURE);
+      }
+      p1_buffer_used = p1.buffer_size;
+    }
+    
+    if (!p2.opened) {
+      int p2_bytes = read(p2.sock, p2.buffer + p2_buffer_used, BUFLEN - p2_buffer_used);
+      if (p2_bytes <= 0) {
+        printf("Player 2 disconnected\n");
+        close(p1.sock);
+        close(p2.sock);
+        exit(EXIT_SUCCESS);
+      }
+      p2_buffer_used += p2_bytes;
+      p2.buffer_size = p2_buffer_used;
+
+      int result = openGame(&p2);
+      if (result < 0) {
+        printf("P2 open err\n");
+        close(p1.sock);
+        close(p2.sock);
+        exit(EXIT_FAILURE);
+      }
+      p2_buffer_used = p2.buffer_size;
+    }
+  }
+
+  // both players opened
+
+  if (strcmp(p1.name, p2.name) == 0) {
+    printf("same name\n");
+    char buf[BUFLEN];
+    int len = encode_fail(buf, BUFLEN, ERR_ALREADY_PLAY);
+    write(p1.sock, buf, len);
+    write(p2.sock, buf, len);
+    close(p1.sock);
+    close(p2.sock);
+    exit(EXIT_FAILURE);
+  }
+
+  // send names to each other
+  char buf[BUFLEN];
+  int len = encode_message(buf, sizeof(buf), "PLAY", "1", p2.name);
+  write(p1.sock, buf, len);
+  len = encode_message(buf, sizeof(buf), "PLAY", "1", p1.name);
+  write(p2.sock, buf, len);
+
+  playGame(&p1, &p2);
+
+  close(p1.sock);
+  close(p2.sock);
+}
 
 int main(int argc, char **argv) {
   if (argc != 2) {
@@ -183,23 +244,29 @@ int main(int argc, char **argv) {
     exit(EXIT_FAILURE);
   }
 
+  int waiting_sock = -1;
+
   while (active) {
     remote_host_len = sizeof(remote_host);
-    int sock =
-        accept(listener, (struct sockaddr *)&remote_host, &remote_host_len);
+    int sock = accept(listener, (struct sockaddr *)&remote_host, &remote_host_len);
 
     if (sock < 0) {
       perror("accept");
       continue;
     }
-
-    if (fork() == 0) {
-      close(listener);
-      read_data(sock, (struct sockaddr *)&remote_host, remote_host_len);
-      exit(EXIT_SUCCESS);
+    if (waiting_sock == -1) {
+      waiting_sock = sock;
+      printf("Connected from %d\nWaiting for opponent\n", waiting_sock);
+    } else {
+      if (fork() == 0) {
+        close(listener);
+        printf("Starting game between %d and %d\n", waiting_sock, sock);
+        handle_game(waiting_sock, sock);
+        exit(EXIT_SUCCESS);
+      }
+      waiting_sock = -1;
+      close(sock);
     }
-
-    close(sock);
   }
 
   fprintf(stderr, "Shutting down\n");
