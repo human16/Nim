@@ -12,6 +12,161 @@
 #include <sys/wait.h>
 #include <unistd.h>
 
+void init_game(Game *g) {
+  // default config of 1, 3, 5, 7, 9
+  for (int i = 0; i < 5; i++) {
+    g->piles[i] = i * 2 + 1;
+  }
+  g->curr_player = 1;
+}
+
+int is_game_over(Game *g) {
+  for (int i = 0; i < 5; i++) {
+    if (g->piles[i] > 0) {
+      return 0;
+    }
+  }
+  return 1;
+}
+
+int do_move(Game *game, int pile, int count) {
+  if (pile < 0 || pile >= 5) {
+    return ERR_PILE_INDEX;
+  }
+  if (count <= 0 || count > game->piles[pile]) {
+    return ERR_QUANTITY;
+  }
+  game->piles[pile] -= count;
+
+  game->curr_player = game->curr_player % 2 + 1;
+
+  return ERR_NONE;
+}
+
+
+void send_msg(int fd, const char *msg, int len) {
+    int sent = 0;
+    while (sent < len) {
+        int n = write(fd, msg + sent, len - sent);
+        if (n <= 0) {
+            return;
+        }
+        sent += n;
+    }
+}
+
+void send_wait(int sock) {
+  char buf[BUFLEN];
+  int len = encode_message(buf, BUFLEN, "WAIT");
+  if (write(sock, buf, len) < 0) {
+    perror("write");
+  }
+}
+
+void send_over(Player *p1, Player *p2, int winner, int forfeit) {
+  char winner_str[8];
+  sprintf(winner_str, "%d", winner);
+
+  char buf[BUFLEN];
+  int len;
+  if (forfeit) {
+    len = encode_message(buf, BUFLEN, "OVER", winner_str, "");
+  } else {
+    len = encode_message(buf, BUFLEN, "OVER", winner_str, "0 0 0 0 0");
+  }
+
+  if (len > 0) {
+    if (p1 != NULL) {
+      send_msg(p1->sock, buf, len);
+    }
+    if (p2 != NULL) {
+      send_msg(p2->sock, buf, len);
+    }
+    printf("Game over.\n");
+  }
+}
+
+
+void send_play(Player *p1, Player *p2, Game *g) {
+  char board[64];
+  sprintf(board, "%d %d %d %d %d", g->piles[0], g->piles[1], g->piles[2], g->piles[3], g->piles[4]);
+  
+  char turn[8];
+  sprintf(turn, "%d", g->curr_player);
+
+  char buf[BUFLEN];
+  int len = encode_message(buf, BUFLEN, "PLAY", turn, board);
+
+  if (len > 0) {
+    send_msg(p1->sock, buf, len);
+    send_msg(p2->sock, buf, len);
+    printf("Sent PLAY\n");
+  }
+}
+
+int openGame(Player *p) {
+  Message msg;
+  int bytes = decode_message(p->buffer, p->buffer_size, &msg);
+
+  if (bytes < 0) {
+    char buf[BUFLEN];
+    int len = encode_fail(buf, sizeof(buf), ERR_INVALID);
+    write(p->sock, buf, len);
+    return -1;
+  }
+  if (bytes == 0) {
+    return 0;
+  }
+
+  // game not open yet
+  if (strcmp(msg.type, "OPEN") != 0) {
+    char buf[BUFLEN];
+    int len = encode_fail(buf, sizeof(buf), ERR_INVALID);
+    write(p->sock, buf, len);
+    return -1;
+  }
+
+  // already opened
+  if (p->opened) {
+    char buf[BUFLEN];
+    int len = encode_fail(buf, sizeof(buf), ERR_ALREADY_OPEN);
+    write(p->sock, buf, len);
+    return -1;
+  }
+
+  // invalid name
+  if (msg.fields[0] == NULL || strlen(msg.fields[0]) == 0 ||
+      strlen(msg.fields[0]) > 72) {
+    char buf[BUFLEN];
+    int len = encode_fail(buf, sizeof(buf), ERR_INVALID);
+    write(p->sock, buf, len);
+    return -1;
+  }
+
+  strncpy(p->name, msg.fields[0], sizeof(p->name) - 1);
+  p->name[sizeof(p->name) - 1] = '\0';
+  p->opened = 1;
+
+  printf("Player %s opened a game.\n", p->name);
+  memmove(p->buffer, p->buffer + bytes, p->buffer_size - bytes);
+  p->buffer_size -= bytes;
+
+  send_wait(p->sock);
+  return 1;
+}
+
+int apply_move(Game *g, int pile, int count) {
+  if (pile < 0 || pile >= 5) {
+    return 1;
+  }
+  if (count <= 0 || count > g->piles[pile]) {
+    return 1;
+  }
+  g->piles[pile] -= count;
+  g->curr_player = g->curr_player % 2 + 1;
+  return 0; 
+}
+
 void playGame(Player *p1, Player *p2) {
   Game game;
   init_game(&game);
@@ -100,144 +255,3 @@ void playGame(Player *p1, Player *p2) {
   // Game loop and logic would go here
 }
 
-int do_move(Game *game, int pile, int count) {
-  if (pile < 0 || pile >= 5) {
-    return ERR_PILE_INDEX;
-  }
-  if (count <= 0 || count > game->piles[pile]) {
-    return ERR_QUANTITY;
-  }
-  game->piles[pile] -= count;
-
-  game->curr_player = game->curr_player % 2 + 1;
-
-  return ERR_NONE;
-}
-
-void init_game(Game *g) {
-  // default config of 1, 3, 5, 7, 9
-  for (int i = 0; i < 5; i++) {
-    g->piles[i] = i * 2 + 1;
-  }
-  g->curr_player = 1;
-}
-
-void send_over(Player *p1, Player *p2, int winner, int forfeit) {
-  char winner_str[8];
-  sprintf(winner_str, "%d", winner);
-
-  char *buf;
-  int len;
-  if (forfeit) {
-    len = encode_message(buf, BUFLEN, "OVER", winner_str, "");
-  } else {
-    len = encode_message(buf, BUFLEN, "OVER", winner_str, "0 0 0 0 0");
-  }
-
-  if (len > 0) {
-    if (p1 != NULL) {
-      send_msg(p1->sock, buf, len);
-    }
-    if (p2 != NULL) {
-      send_msg(p2->sock, buf, len);
-    }
-    printf("Game over.\n");
-  }
-}
-
-void send_msg(int fd, const char *msg, int len) {
-    int sent = 0;
-    while (sent < len) {
-        int n = write(fd, msg + sent, len - sent);
-        if (n <= 0) {
-            return;
-        }
-        sent += n;
-    }
-}
-
-void send_play(Player *p1, Player *p2, Game *g) {
-  char board[64];
-  sprintf(board, "%d %d %d %d %d", g->piles[0], g->piles[1], g->piles[2], g->piles[3], g->piles[4]);
-  
-  char turn[8];
-  sprintf(turn, "%d", g->curr_player);
-
-  char *buf;
-  int len = encode_message(buf, BUFLEN, "PLAY", turn, board);
-
-  if (len > 0) {
-    send_msg(p1->sock, buf, len);
-    send_msg(p2->sock, buf, len);
-    printf("Sent PLAY\n");
-  }
-}
-
-void send_wait(int sock) {
-  char buf[BUFLEN];
-  int len = encode_message(buf, BUFLEN, "WAIT");
-  if (write(sock, buf, len) < 0) {
-    perror("write");
-  }
-}
-
-int openGame(Player *p) {
-  Message msg;
-  int bytes = decode_message(p->buffer, p->buffer_size, &msg);
-
-  if (bytes < 0) {
-    char buf[BUFLEN];
-    int len = encode_fail(buf, sizeof(buf), ERR_INVALID);
-    write(p->sock, buf, len);
-    return -1;
-  }
-  if (bytes == 0) {
-    return 0;
-  }
-
-  // game not open yet
-  if (strcmp(msg.type, "OPEN") != 0) {
-    char buf[BUFLEN];
-    int len = encode_fail(buf, sizeof(buf), ERR_INVALID);
-    write(p->sock, buf, len);
-    return -1;
-  }
-
-  // already opened
-  if (p->opened) {
-    char buf[BUFLEN];
-    int len = encode_fail(buf, sizeof(buf), ERR_ALREADY_OPEN);
-    write(p->sock, buf, len);
-    return -1;
-  }
-
-  // invalid name
-  if (msg.fields[0] == NULL || strlen(msg.fields[0]) == 0 ||
-      strlen(msg.fields[0]) > 72) {
-    char buf[BUFLEN];
-    int len = encode_fail(buf, sizeof(buf), ERR_INVALID);
-    write(p->sock, buf, len);
-    return -1;
-  }
-
-  strncpy(p->name, msg.fields[0], sizeof(p->name) - 1);
-  p->name[sizeof(p->name) - 1] = '\0';
-  p->opened = 1;
-
-  memmove(p->buffer, p->buffer + bytes, p->buffer_size - bytes);
-  p->buffer_size -= bytes;
-
-  send_wait(p->sock);
-  return 1;
-}
-
-int apply_move(Game *g, int pile, int count) { return EXIT_SUCCESS; }
-
-int is_game_over(Game *g) {
-  for (int i = 0; i < 5; i++) {
-    if (g->piles[i] > 0) {
-      return 0;
-    }
-  }
-  return 1;
-}
