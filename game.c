@@ -55,6 +55,22 @@ void send_msg(int fd, const char *msg, int len) {
     }
 }
 
+void send_name(Player *p1, Player *p2) {
+  char buf1[BUFLEN];
+  int len1 = encode_message(buf1, BUFLEN, "NAME", "2", p2->name);
+  if (len1 > 0) {
+    printf("Sending NAME to P1\n");
+    send_msg(p1->sock, buf1, len1);
+  }
+
+  char buf2[BUFLEN];
+  int len2 = encode_message(buf2, BUFLEN, "NAME", "1", p1->name);
+  if (len2 > 0) {
+    printf("Sending NAME to P2\n");
+    send_msg(p2->sock, buf2, len2);
+  }
+}
+
 void send_wait(int sock) {
   char buf[BUFLEN];
   int len = encode_message(buf, BUFLEN, "WAIT");
@@ -98,9 +114,13 @@ void send_play(Player *p1, Player *p2, Game *g) {
   int len = encode_message(buf, BUFLEN, "PLAY", turn, board);
 
   if (len > 0) {
-    send_msg(p1->sock, buf, len);
-    send_msg(p2->sock, buf, len);
-    printf("Sent PLAY\n");
+    if (g->curr_player == 1) {
+      printf("Sending PLAY to P1\n");
+      send_msg(p1->sock, buf, len);
+    } else {
+      printf("Sending PLAY to P2\n");
+      send_msg(p2->sock, buf, len);
+    }
   }
 }
 
@@ -173,6 +193,9 @@ void playGame(Player *p1, Player *p2) {
 
   p1->playing = 1;
   p2->playing = 1;
+
+  printf("sending names\n");
+  send_name(p1, p2);
 
   send_play(p1, p2, &game);
 
