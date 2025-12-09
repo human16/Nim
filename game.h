@@ -22,6 +22,6 @@ void playGame(Player *p1, Player *p2);
 
 void init_game(Game *g);
 
-int apply_move(Game *g, int pile, int count);
+int do_move(Game *g, int pile, int count);
 
 int is_game_over(Game *g);
