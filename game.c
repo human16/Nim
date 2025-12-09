@@ -82,7 +82,7 @@ void send_wait(int sock) {
   }
 }
 
-void send_over(Player *p1, Player *p2, int winner, int forfeit) {
+void send_over(Game *g, Player *p1, Player *p2, int winner, int forfeit) {
   char winner_str[8];
   sprintf(winner_str, "%d", winner);
 
@@ -208,7 +208,7 @@ void playGame(Player *p1, Player *p2) {
 
     if (bytes <= 0) {
       printf("Player %d disconnected\n", game.curr_player);
-      send_over(waiting, NULL, waiting->p_num, 1);
+      send_over(&game, waiting, NULL, waiting->p_num, 1);
       return ;
     }
 
@@ -263,7 +263,7 @@ void playGame(Player *p1, Player *p2) {
 
     if (is_game_over(&game)) {
       printf("OVER sent\n");
-      send_over(current, waiting, current->p_num, 0);
+      send_over(&game, current, waiting, current->p_num, 0);
       return ;
     } else {
       send_play(p1, p2, &game);
