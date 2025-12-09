@@ -41,6 +41,9 @@ static int create_test_player(Player *p, int p_num) {
   p->buffer_size = 0;
   p->playing = 0;
 
+  int flags = fcntl(p->sock, F_GETFL, 0);
+  fcntl(p->sock, F_SETFL, flags | O_NONBLOCK);
+
   return sv[1];
 }
 
@@ -214,15 +217,15 @@ void test_is_game_over() {
   }
 }
 
-void test_apply_move() {
-  printf("\n--- apply_move() Tests ---\n");
+void test_do_move() {
+  printf("\n--- do_move() Tests ---\n");
 
   /* basic valid move */
   {
     Game g;
     init_game(&g);
 
-    int result = apply_move(&g, 1, 2);
+    int result = do_move(&g, 1, 2);
 
     int pass = (result == 0 && g.piles[1] == 1);
 
@@ -235,7 +238,7 @@ void test_apply_move() {
     Game g;
     init_game(&g);
 
-    int result = apply_move(&g, 2, 5);
+    int result = do_move(&g, 2, 5);
 
     int pass = (result == 0 && g.piles[2] == 0);
 
@@ -248,7 +251,7 @@ void test_apply_move() {
     Game g;
     init_game(&g);
 
-    int result = apply_move(&g, 4, 1);
+    int result = do_move(&g, 4, 1);
 
     int pass = (result == 0 && g.piles[4] == 8);
 
@@ -261,7 +264,7 @@ void test_apply_move() {
     Game g;
     init_game(&g);
 
-    int result = apply_move(&g, -1, 1);
+    int result = do_move(&g, -1, 1);
 
     int pass = (result != 0 && g.piles[0] == 1);
 
@@ -274,7 +277,7 @@ void test_apply_move() {
     Game g;
     init_game(&g);
 
-    int result = apply_move(&g, 5, 1);
+    int result = do_move(&g, 5, 1);
 
     int pass = (result != 0);
 
@@ -287,7 +290,7 @@ void test_apply_move() {
     Game g;
     init_game(&g);
 
-    int result = apply_move(&g, 2, 0);
+    int result = do_move(&g, 2, 0);
 
     int pass = (result != 0 && g.piles[2] == 5);
 
@@ -299,7 +302,7 @@ void test_apply_move() {
     Game g;
     init_game(&g);
 
-    int result = apply_move(&g, 0, 2);
+    int result = do_move(&g, 0, 2);
 
     int pass = (result != 0 && g.piles[0] == 1);
 
@@ -312,7 +315,7 @@ void test_apply_move() {
     init_game(&g);
     g.piles[0] = 0;
 
-    int result = apply_move(&g, 0, 1);
+    int result = do_move(&g, 0, 1);
 
     int pass = (result != 0);
 
@@ -324,7 +327,7 @@ void test_apply_move() {
     Game g;
     init_game(&g);
 
-    int result = apply_move(&g, 2, -1);
+    int result = do_move(&g, 2, -1);
 
     int pass = (result != 0 && g.piles[2] == 5);
 
@@ -338,17 +341,17 @@ void test_apply_move() {
 
     int pass = 1;
 
-    if (apply_move(&g, 0, 1) != 0 || g.piles[0] != 0)
+    if (do_move(&g, 0, 1) != 0 || g.piles[0] != 0)
       pass = 0;
-    if (apply_move(&g, 1, 3) != 0 || g.piles[1] != 0)
+    if (do_move(&g, 1, 3) != 0 || g.piles[1] != 0)
       pass = 0;
-    if (apply_move(&g, 2, 5) != 0 || g.piles[2] != 0)
+    if (do_move(&g, 2, 5) != 0 || g.piles[2] != 0)
       pass = 0;
-    if (apply_move(&g, 3, 7) != 0 || g.piles[3] != 0)
+    if (do_move(&g, 3, 7) != 0 || g.piles[3] != 0)
       pass = 0;
     if (is_game_over(&g) != 0)
       pass = 0;
-    if (apply_move(&g, 4, 9) != 0 || g.piles[4] != 0)
+    if (do_move(&g, 4, 9) != 0 || g.piles[4] != 0)
       pass = 0;
     if (is_game_over(&g) != 1)
       pass = 0;
@@ -854,7 +857,7 @@ int main() {
 
   test_init_game();
   test_is_game_over();
-  test_apply_move();
+  test_do_move();
   test_openGame();
   test_playGame();
 
@@ -863,7 +866,7 @@ int main() {
   printf("==============================================\n");
 
   if (tests_failed > 0) {
-    printf("\nNote: apply_move() tests are expected to fail\n");
+    printf("\nNote: do_move() tests are expected to fail\n");
     printf("\t\tuntil function is implemented.\n");
   }
 

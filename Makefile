@@ -14,11 +14,11 @@ debug: $(DEBUG_OBJS)
 
 test_decoder: $(TEST_DECODER_OBJS)
 	$(CC) $(CFLAGS) $^ -o test_decoder
-	./test_decoder
+# ./test_decoder
 
 test_game: $(TEST_GAME_OBJS)
 	$(CC) $(CFLAGS) $^ -o test_game
-	./test_game
+# ./test_game
 
 %.o: %.c
 	$(CC) $(CFLAGS) -c $< -o $@

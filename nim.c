@@ -156,52 +156,52 @@ void handle_game(int p1_sock, int p2_sock) {
   Player p1 = {p1_sock, "", 1, 0, malloc(BUFLEN), 0};
   Player p2 = {p2_sock, "", 1, 0, malloc(BUFLEN), 0};
   
-  // Track how many bytes are currently in each buffer
-  int p1_buffer_used = 0;
-  int p2_buffer_used = 0;
-  
   // Wait for both players to open
   while (!p1.opened || !p2.opened) {
     if (!p1.opened) {
-      int p1_bytes = read(p1.sock, p1.buffer + p1_buffer_used, BUFLEN - p1_buffer_used);
+      int p1_bytes = read(p1.sock, p1.buffer + p1.buffer_size, BUFLEN - p1.buffer_size);
       if (p1_bytes <= 0) {
         printf("Player 1 disconnected\n");
+        free(p1.buffer);
+        free(p2.buffer);
         close(p1.sock);
         close(p2.sock);
         exit(EXIT_SUCCESS);
       }
-      p1_buffer_used += p1_bytes;
-      p1.buffer_size = p1_buffer_used;
+      p1.buffer_size += p1_bytes;
 
       int result = openGame(&p1);
       if (result < 0) {
         printf("P1 open err\n");
+        free(p1.buffer);
+        free(p2.buffer);
         close(p1.sock);
         close(p2.sock);
         exit(EXIT_FAILURE);
       }
-      p1_buffer_used = p1.buffer_size;
     }
     
     if (!p2.opened) {
-      int p2_bytes = read(p2.sock, p2.buffer + p2_buffer_used, BUFLEN - p2_buffer_used);
+      int p2_bytes = read(p2.sock, p2.buffer + p2.buffer_size, BUFLEN - p2.buffer_size);
       if (p2_bytes <= 0) {
         printf("Player 2 disconnected\n");
+        free(p1.buffer);
+        free(p2.buffer);
         close(p1.sock);
         close(p2.sock);
         exit(EXIT_SUCCESS);
       }
-      p2_buffer_used += p2_bytes;
-      p2.buffer_size = p2_buffer_used;
+      p2.buffer_size += p2_bytes;
 
       int result = openGame(&p2);
       if (result < 0) {
         printf("P2 open err\n");
+        free(p1.buffer);
+        free(p2.buffer);
         close(p1.sock);
         close(p2.sock);
         exit(EXIT_FAILURE);
       }
-      p2_buffer_used = p2.buffer_size;
     }
   }
 
@@ -211,22 +211,18 @@ void handle_game(int p1_sock, int p2_sock) {
     printf("same name\n");
     char buf[BUFLEN];
     int len = encode_fail(buf, BUFLEN, ERR_ALREADY_PLAY);
-    write(p1.sock, buf, len);
     write(p2.sock, buf, len);
+    free(p1.buffer);
+    free(p2.buffer);
     close(p1.sock);
     close(p2.sock);
     exit(EXIT_FAILURE);
   }
 
-  // send names to each other
-  char buf[BUFLEN];
-  int len = encode_message(buf, sizeof(buf), "PLAY", "1", p2.name);
-  write(p1.sock, buf, len);
-  len = encode_message(buf, sizeof(buf), "PLAY", "1", p1.name);
-  write(p2.sock, buf, len);
-
   playGame(&p1, &p2);
 
+  free(p1.buffer);
+  free(p2.buffer);
   close(p1.sock);
   close(p2.sock);
 }
@@ -264,8 +260,9 @@ int main(int argc, char **argv) {
         handle_game(waiting_sock, sock);
         exit(EXIT_SUCCESS);
       }
-      waiting_sock = -1;
+      close(waiting_sock);
       close(sock);
+      waiting_sock = -1;
     }
   }
 
