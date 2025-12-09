@@ -168,7 +168,7 @@ void handle_game(int p1_sock, int p2_sock) {
         close(p2.sock);
         exit(EXIT_SUCCESS);
       }
-      p1.buffer_size = p1_bytes;
+      p1.buffer_size += p1_bytes;
 
       int result = openGame(&p1);
       if (result < 0) {

@@ -92,7 +92,7 @@ void send_over(Game *g, Player *p1, Player *p2, int winner, int forfeit) {
   char buf[BUFLEN];
   int len;
   if (forfeit) {
-    len = encode_message(buf, BUFLEN, "OVER", winner_str, board, "forfeit");
+    len = encode_message(buf, BUFLEN, "OVER", winner_str, board, "Forfeit");
   } else {
     len = encode_message(buf, BUFLEN, "OVER", winner_str, board, "");
   }
@@ -120,13 +120,9 @@ void send_play(Player *p1, Player *p2, Game *g) {
   int len = encode_message(buf, BUFLEN, "PLAY", turn, board);
 
   if (len > 0) {
-    if (g->curr_player == 1) {
-      printf("Sending PLAY to P1\n");
-      send_msg(p1->sock, buf, len);
-    } else {
-      printf("Sending PLAY to P2\n");
-      send_msg(p2->sock, buf, len);
-    }
+    printf("Sending PLAY\n");
+    send_msg(p1->sock, buf, len);
+    send_msg(p2->sock, buf, len);
   }
 }
 
