@@ -41,6 +41,9 @@ static int create_test_player(Player *p, int p_num) {
   p->buffer_size = 0;
   p->playing = 0;
 
+  int flags = fcntl(p->sock, F_GETFL, 0);
+  fcntl(p->sock, F_SETFL, flags | O_NONBLOCK);
+
   return sv[1];
 }
 

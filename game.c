@@ -46,28 +46,27 @@ int do_move(Game *game, int pile, int count) {
   return ERR_NONE;
 }
 
-
 void send_msg(int fd, const char *msg, int len) {
-    int sent = 0;
-    while (sent < len) {
-        int n = write(fd, msg + sent, len - sent);
-        if (n <= 0) {
-            return;
-        }
-        sent += n;
+  int sent = 0;
+  while (sent < len) {
+    int n = write(fd, msg + sent, len - sent);
+    if (n <= 0) {
+      return;
     }
+    sent += n;
+  }
 }
 
 void send_name(Player *p1, Player *p2) {
   char buf1[BUFLEN];
-  int len1 = encode_message(buf1, BUFLEN, "NAME", "2", p2->name);
+  int len1 = encode_message(buf1, BUFLEN, "NAME", "1", p2->name);
   if (len1 > 0) {
     printf("Sending NAME to P1\n");
     send_msg(p1->sock, buf1, len1);
   }
 
   char buf2[BUFLEN];
-  int len2 = encode_message(buf2, BUFLEN, "NAME", "1", p1->name);
+  int len2 = encode_message(buf2, BUFLEN, "NAME", "2", p1->name);
   if (len2 > 0) {
     printf("Sending NAME to P2\n");
     send_msg(p2->sock, buf2, len2);
@@ -86,8 +85,9 @@ void send_over(Game *g, Player *p1, Player *p2, int winner, int forfeit) {
   char winner_str[8];
   sprintf(winner_str, "%d", winner);
 
-    char board[64];
-  sprintf(board, "%d %d %d %d %d", g->piles[0], g->piles[1], g->piles[2], g->piles[3], g->piles[4]);
+  char board[64];
+  sprintf(board, "%d %d %d %d %d", g->piles[0], g->piles[1], g->piles[2],
+          g->piles[3], g->piles[4]);
 
   char buf[BUFLEN];
   int len;
@@ -108,11 +108,11 @@ void send_over(Game *g, Player *p1, Player *p2, int winner, int forfeit) {
   }
 }
 
-
 void send_play(Player *p1, Player *p2, Game *g) {
   char board[64];
-  sprintf(board, "%d %d %d %d %d", g->piles[0], g->piles[1], g->piles[2], g->piles[3], g->piles[4]);
-  
+  sprintf(board, "%d %d %d %d %d", g->piles[0], g->piles[1], g->piles[2],
+          g->piles[3], g->piles[4]);
+
   char turn[8];
   sprintf(turn, "%d", g->curr_player);
 
@@ -136,7 +136,7 @@ int openGame(Player *p) {
 
   if (bytes < 0) {
     char buf[BUFLEN];
-    int len = encode_fail(buf, sizeof(buf), ERR_INVALID);
+    int len = encode_fail(buf, sizeof(buf), msg.error_code);
     write(p->sock, buf, len);
     return -1;
   }
@@ -204,12 +204,22 @@ void playGame(Player *p1, Player *p2) {
       waiting = p1;
     }
 
-    int bytes = read(current->sock, current->buffer + current->buffer_size, BUFLEN - current->buffer_size);
+    int bytes = read(current->sock, current->buffer + current->buffer_size,
+                     BUFLEN - current->buffer_size);
 
-    if (bytes <= 0) {
+    if (bytes < 0) {
+      if (errno == EAGAIN || errno == EWOULDBLOCK) {
+        return;
+      }
       printf("Player %d disconnected\n", game.curr_player);
       send_over(&game, waiting, NULL, waiting->p_num, 1);
-      return ;
+      return;
+    }
+
+    if (bytes == 0) {
+      printf("Player %d disconnected\n", game.curr_player);
+      send_over(&game, waiting, NULL, waiting->p_num, 1);
+      return;
     }
 
     current->buffer_size += bytes;
@@ -222,7 +232,7 @@ void playGame(Player *p1, Player *p2) {
       char buf[256];
       int len = encode_fail(buf, sizeof(buf), ERR_INVALID);
       if (len > 0) {
-          send_msg(current->sock, buf, len);
+        send_msg(current->sock, buf, len);
       }
       close(current->sock);
     }
@@ -231,7 +241,8 @@ void playGame(Player *p1, Player *p2) {
       continue;
     }
 
-    memmove(current->buffer, current->buffer + msg_bytes, current->buffer_size - msg_bytes);
+    memmove(current->buffer, current->buffer + msg_bytes,
+            current->buffer_size - msg_bytes);
     current->buffer_size -= msg_bytes;
 
     if (strcmp(msg.type, "MOVE") != 0) {
@@ -239,7 +250,7 @@ void playGame(Player *p1, Player *p2) {
       char buf[256];
       int len = encode_fail(buf, sizeof(buf), ERR_INVALID);
       if (len > 0) {
-          send_msg(current->sock, buf, len);
+        send_msg(current->sock, buf, len);
       }
       continue;
     }
@@ -250,13 +261,13 @@ void playGame(Player *p1, Player *p2) {
     printf("Player %d MOVE pile %d count %d\n", game.curr_player, pile, count);
 
     int err = do_move(&game, pile, count);
-  
+
     if (err != ERR_NONE) {
       printf("Invalid move\n");
       char buf[256];
       int len = encode_fail(buf, sizeof(buf), err);
       if (len > 0) {
-          send_msg(current->sock, buf, len);
+        send_msg(current->sock, buf, len);
       }
       continue;
     }
@@ -264,7 +275,7 @@ void playGame(Player *p1, Player *p2) {
     if (is_game_over(&game)) {
       printf("OVER sent\n");
       send_over(&game, current, waiting, current->p_num, 0);
-      return ;
+      return;
     } else {
       send_play(p1, p2, &game);
     }
@@ -272,4 +283,3 @@ void playGame(Player *p1, Player *p2) {
 
   // Game loop and logic would go here
 }
-
