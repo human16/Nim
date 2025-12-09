@@ -27,4 +27,4 @@ nim.o: decoder.h game.h
 decoder.o: decoder.h decoder.c
 
 clean:
-	rm -f *.o nimd debug_nim test_decoder test_game
+	rm -f *.o nimd debug_nim test_decoder test_game && cd ./clients/src/ && make clean
