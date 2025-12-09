@@ -46,92 +46,40 @@ typedef struct {
 
 **`void init_game(Game *g)`**
 
-- Initializes a new game with the default configuration
-- Sets piles to 1, 3, 5, 7, 9 stones respectively
-- Sets `curr_player` to 1
+Sets piles to 1, 3, 5, 7, 9 stones respectively and sets `curr_player` to 1
 
 **`int is_game_over(Game *g)`**
 
-- Checks if the game has ended (all piles empty)
-- Returns 1 if game is over, 0 otherwise
+Checks if the game has ended (all piles empty). Returns 1 if game is over, 0 otherwise
 
 **`int do_move(Game *game, int pile, int count)`**
 
-- Executes a move by removing stones from a pile
-- Parameters:
-  - `game`: pointer to game state
-  - `pile`: pile index (0-4)
-  - `count`: number of stones to remove
-- Returns:
-  - `ERR_NONE` (0) on success
-  - `ERR_PILE_INDEX` if pile index is out of range
-  - `ERR_QUANTITY` if count is invalid (≤0 or >stones in pile)
-- Automatically switches current player after successful move
-
-**`void send_msg(int fd, const char *msg, int len)`**
-
-- Helper function to send a complete message through a socket
-- Handles partial writes by looping until all bytes are sent
-- Parameters:
-  - `fd`: socket file descriptor
-  - `msg`: message buffer to send
-  - `len`: number of bytes to send
+executes a move if it's legal, if not, returns the appropriate error.
 
 **`void send_name(Player *p1, Player *p2)`**
 
-- Sends NAME messages to both players
-- Informs each player of their number (1 or 2) and opponent's name
-- Called when a match begins
+exchanges names between players
 
 **`void send_wait(int sock)`**
 
-- Sends WAIT message to a client
-- Called after receiving OPEN message from client
+sends wait... yeah. that's all
 
 **`void send_over(Game *g, Player *p1, Player *p2, int winner, int forfeit)`**
 
-- Sends OVER message to both players indicating game end
-- Parameters:
-  - `g`: current game state
-  - `p1`, `p2`: player pointers (can be NULL if disconnected)
-  - `winner`: winning player number
-  - `forfeit`: 1 if game ended by forfeit, 0 for normal win
-- Includes final board state and forfeit flag in message
+Sends over the both players (if connected) and informs them if it was a forfeit or not and who won
 
 **`void send_play(Player *p1, Player *p2, Game *g)`**
 
-- Sends PLAY message to the appropriate player whose turn it is
-- Includes current player number and board state
+It handles play as listed in the project description. not much else.
 
 **`int openGame(Player *p)`**
 
-- Handles the OPEN handshake for a player
-- Validates OPEN message and player name
-- Checks for errors:
-  - Invalid message format
-  - Name too long (>72 characters)
-  - Empty name
-  - OPEN sent more than once
-- Returns:
-  - `1` on success (OPEN accepted, WAIT sent)
-  - `0` for incomplete message (need more data)
-  - `-1` on error (FAIL sent to client)
-- Updates player's buffer by removing consumed message bytes
+opens game
 
 **`void playGame(Player *p1, Player *p2)`**
 
-- Main game loop that manages a complete Nim game between two players
-- Flow:
-  1. Initializes game state
-  2. Sends NAME messages to both players
-  3. Sends initial PLAY message
-  4. Enters turn loop:
-     - Reads MOVE message from current player
-     - Validates move
-     - Updates game state
-     - Sends next PLAY or OVER message
-  5. Handles disconnections as forfeits
-- Continues until game ends or player disconnects
+Has the loop of waiting for move, validating the move, updating the game, and checking for when the game is over.
+
 
 ---
 
@@ -143,67 +91,23 @@ Main server implementation that handles networking and game coordination.
 
 **`void handler(int signum)`**
 
-- Signal handler for SIGINT, SIGHUP, SIGTERM
-- Sets `active` flag to 0 to initiate graceful shutdown
-
 **`void reap(int signum)`**
-
-- SIGCHLD handler to reap zombie child processes
-- Calls `waitpid()` in a loop to reap all terminated children
 
 **`void install_handlers(void)`**
 
-- Installs signal handlers for graceful shutdown and zombie reaping
-- Sets up handlers for SIGINT, SIGHUP, SIGTERM, and SIGCHLD
-
 **`int connect_inet(char *host, char *service)`**
-
-- Creates a TCP connection to a remote host
-- Parameters:
-  - `host`: hostname or IP address
-  - `service`: port number as string
-- Returns: socket file descriptor, or -1 on failure
-- Uses `getaddrinfo()` to resolve address
 
 **`int open_listener(char *service, int queue_size)`**
 
-- Creates a listening TCP socket bound to specified port
-- Parameters:
-  - `service`: port number as string
-  - `queue_size`: maximum length of pending connection queue
-- Returns: listener socket file descriptor, or -1 on failure
-- Binds to all available interfaces (IPv4 and IPv6)
-
-**`void read_buf(int sock, char *buf, int bufsize)`**
-
-- Helper function to read data from socket until buffer is full
-- Handles partial reads by looping
+^^ all "borrowed" from lecture :)
 
 **`void handle_game(int p1_sock, int p2_sock)`**
 
-- Handles a complete game between two players
-- Flow:
-  1. Creates Player structs for both players
-  2. Waits for both players to send OPEN messages
-  3. Validates that players have different names
-  4. Calls `playGame()` to run the game
-  5. Cleans up resources and closes sockets
-- Runs in child process created by `fork()`
-- Handles errors and disconnections during setup
+Creates the Player structure for players and then calls play game and all that.
 
 **`int main(int argc, char **argv)`**
 
-- Main server loop
-- Flow:
-  1. Validates command line arguments (port number)
-  2. Opens listening socket
-  3. Enters accept loop:
-     - Accepts connection from first player (stores in `waiting_sock`)
-     - Accepts connection from second player
-     - Forks child process to handle game
-     - Parent closes player sockets and resets `waiting_sock`
-  4. Continues until interrupted by signal
-- Uses fork() to handle multiple concurrent games
+Takes in 2 sockets at a time and pairs them into games. Also handles concurrent games I hope. Horray
 
 ---
 
