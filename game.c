@@ -38,8 +38,11 @@ int do_move(Game *game, int pile, int count) {
   }
   game->piles[pile] -= count;
 
-  game->curr_player = game->curr_player % 2 + 1;
-
+  if (game->curr_player == 1) {
+    game->curr_player = 2;
+  } else {
+    game->curr_player = 1;
+  }
   return ERR_NONE;
 }
 
@@ -175,18 +178,6 @@ int openGame(Player *p) {
   return 1;
 }
 
-int apply_move(Game *g, int pile, int count) {
-  if (pile < 0 || pile >= 5) {
-    return 1;
-  }
-  if (count <= 0 || count > g->piles[pile]) {
-    return 1;
-  }
-  g->piles[pile] -= count;
-  g->curr_player = g->curr_player % 2 + 1;
-  return 0; 
-}
-
 void playGame(Player *p1, Player *p2) {
   Game game;
   init_game(&game);
@@ -271,7 +262,7 @@ void playGame(Player *p1, Player *p2) {
       send_over(current, waiting, current->p_num, 0);
       return ;
     } else {
-      send_play(current, waiting, &game);
+      send_play(p1, p2, &game);
     }
   }
 
