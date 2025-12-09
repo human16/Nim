@@ -156,10 +156,6 @@ void handle_game(int p1_sock, int p2_sock) {
   Player p1 = {p1_sock, "", 1, 0, malloc(BUFLEN), 0};
   Player p2 = {p2_sock, "", 1, 0, malloc(BUFLEN), 0};
   
-  p1.buffer = malloc(BUFLEN);
-  p2.buffer = malloc(BUFLEN);
-
-  
   // Wait for both players to open
   while (!p1.opened || !p2.opened) {
     if (!p1.opened) {
@@ -264,9 +260,9 @@ int main(int argc, char **argv) {
         handle_game(waiting_sock, sock);
         exit(EXIT_SUCCESS);
       }
-      waiting_sock = -1;
       close(waiting_sock);
       close(sock);
+      waiting_sock = -1;
     }
   }
 
