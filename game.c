@@ -86,12 +86,15 @@ void send_over(Player *p1, Player *p2, int winner, int forfeit) {
   char winner_str[8];
   sprintf(winner_str, "%d", winner);
 
+    char board[64];
+  sprintf(board, "%d %d %d %d %d", g->piles[0], g->piles[1], g->piles[2], g->piles[3], g->piles[4]);
+
   char buf[BUFLEN];
   int len;
   if (forfeit) {
-    len = encode_message(buf, BUFLEN, "OVER", winner_str, "");
+    len = encode_message(buf, BUFLEN, "OVER", winner_str, board, "forfeit");
   } else {
-    len = encode_message(buf, BUFLEN, "OVER", winner_str, "0 0 0 0 0");
+    len = encode_message(buf, BUFLEN, "OVER", winner_str, board, "");
   }
 
   if (len > 0) {
@@ -259,6 +262,7 @@ void playGame(Player *p1, Player *p2) {
     }
 
     if (is_game_over(&game)) {
+      printf("OVER sent\n");
       send_over(current, waiting, current->p_num, 0);
       return ;
     } else {
